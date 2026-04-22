@@ -670,7 +670,15 @@ function renderCalendar() {
     html += '<div class="cal-row">';
     html += `<div class="time-label">${String(h).padStart(2,'0')}:00</div>`;
     days.forEach(d=>{
-      const evs = bookings.filter(b => b.date===fmt(d) && parseInt(b.start)<=h && parseInt(b.end)>h);
+      const evs = bookings.filter(b => {
+        if (b.date !== fmt(d)) return false;
+        const [sh, sm] = b.start.split(':').map(Number);
+        const [eh, em] = b.end.split(':').map(Number);
+        const startMins = sh * 60 + sm;
+        const endMins   = eh * 60 + em;
+        const slotMins  = h * 60;
+        return startMins < (slotMins + 60) && endMins > slotMins;
+      });
       html += `<div class="cal-cell">${evs.map(b=>`<div class="cal-event ev-${b.company}">${b.roomName}: ${b.name}</div>`).join('')}</div>`;
     });
     html += '</div>';
