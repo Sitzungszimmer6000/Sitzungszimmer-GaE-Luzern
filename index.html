@@ -5,6 +5,46 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sitzungszimmer Reservierung</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<!-- ══════════════════════════════════════════════
+     FIREBASE KONFIGURATION
+     Ersetzen Sie die Werte unten mit Ihren eigenen
+     Firebase-Projektdaten (siehe Anleitung)
+     ══════════════════════════════════════════════ -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, push, onValue, remove }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+  // ▼▼▼ FIREBASE-KONFIGURATION (sitzungszimmer-70b40) ▼▼▼
+  const firebaseConfig = {
+    apiKey:            "AIzaSyCrvIhHArzQhDn5wGuUXNnGnI8vbP_5ypc",
+    authDomain:        "sitzungszimmer-70b40.firebaseapp.com",
+    databaseURL:       "https://sitzungszimmer-70b40-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId:         "sitzungszimmer-70b40",
+    storageBucket:     "sitzungszimmer-70b40.firebasestorage.app",
+    messagingSenderId: "114801065554",
+    appId:             "1:114801065554:web:1b35600c1d3003f788698b",
+    measurementId:     "G-37Y54ED3Y5"
+  };
+  // ▲▲▲ ENDE KONFIGURATION ▲▲▲
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getDatabase(app);
+
+  // Globale Funktionen für das restliche Script zugänglich machen
+  window._fbPush   = (data) => push(ref(db, 'bookings'), data);
+  window._fbListen = (cb)   => onValue(ref(db, 'bookings'), snap => {
+    const val = snap.val();
+    cb(val ? Object.entries(val).map(([k,v]) => ({...v, fbKey: k})) : []);
+  });
+  window._fbDelete = (key)  => remove(ref(db, `bookings/${key}`));
+  window._fbReady  = true;
+
+  // Seite neu laden sobald Firebase bereit
+  document.dispatchEvent(new Event('fb-ready'));
+</script>
+
 <style>
   :root {
     --bg: #f5f2ec;
@@ -16,152 +56,106 @@
     --accent-b: #1a5276;
     --accent-c: #1e8449;
     --success: #27ae60;
-    --warning: #e67e22;
     --radius: 4px;
   }
-
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; }
 
-  body {
-    font-family: 'DM Sans', sans-serif;
-    background: var(--bg);
-    color: var(--ink);
-    min-height: 100vh;
+  /* ── SETUP BANNER ── */
+  #setup-banner {
+    background: #fff3cd; border-bottom: 2px solid #f0a500;
+    padding: 12px 32px; font-size: .88rem; display: flex;
+    align-items: center; gap: 10px;
   }
+  #setup-banner strong { color: #856404; }
+  #setup-banner a { color: #856404; font-weight: 600; }
+  #setup-banner.hidden { display: none; }
+
+  /* ── STATUS BAR ── */
+  #status-bar {
+    background: var(--success); color: white;
+    padding: 8px 32px; font-size: .8rem; font-weight: 500;
+    display: none; align-items: center; gap: 8px;
+  }
+  #status-bar.visible { display: flex; }
+  #status-bar.error { background: #c0392b; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: white; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 
   /* ── HEADER ── */
   header {
-    background: var(--ink);
-    color: var(--white);
-    padding: 0 32px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 64px;
-    position: sticky;
-    top: 0;
-    z-index: 100;
+    background: var(--ink); color: var(--white);
+    padding: 0 32px; display: flex; align-items: center;
+    justify-content: space-between; height: 64px;
+    position: sticky; top: 0; z-index: 100;
   }
-  header h1 {
-    font-family: 'DM Serif Display', serif;
-    font-size: 1.3rem;
-    letter-spacing: .02em;
-  }
-  header .company-badge {
-    font-size: .75rem;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: .12em;
-    padding: 4px 12px;
-    border-radius: 100px;
+  header h1 { font-family: 'DM Serif Display', serif; font-size: 1.3rem; }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .company-badge {
+    font-size: .75rem; font-weight: 500; text-transform: uppercase;
+    letter-spacing: .12em; padding: 4px 12px; border-radius: 100px;
     background: rgba(255,255,255,.12);
   }
-  header .company-badge.A { background: var(--accent-a); }
-  header .company-badge.B { background: var(--accent-b); }
-  header .company-badge.C { background: var(--accent-c); }
+  .company-badge.A { background: var(--accent-a); }
+  .company-badge.B { background: var(--accent-b); }
+  .company-badge.C { background: var(--accent-c); }
+  .sync-icon { font-size: 1rem; opacity: .5; }
+  .sync-icon.syncing { animation: spin .8s linear infinite; opacity: 1; }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
   /* ── TABS ── */
   .tabs {
-    display: flex;
-    gap: 0;
-    padding: 0 32px;
-    border-bottom: 1px solid var(--border);
-    background: var(--white);
+    display: flex; padding: 0 32px;
+    border-bottom: 1px solid var(--border); background: var(--white);
   }
   .tab-btn {
-    padding: 14px 24px;
-    border: none;
-    background: none;
-    font-family: 'DM Sans', sans-serif;
-    font-size: .9rem;
-    font-weight: 500;
-    cursor: pointer;
-    color: var(--muted);
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-    transition: all .2s;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    padding: 14px 24px; border: none; background: none;
+    font-family: 'DM Sans', sans-serif; font-size: .9rem; font-weight: 500;
+    cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent;
+    margin-bottom: -1px; transition: all .2s; display: flex; align-items: center; gap: 8px;
   }
   .tab-btn:hover { color: var(--ink); }
   .tab-btn.active { color: var(--ink); border-bottom-color: var(--ink); }
-  .tab-btn .dot {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    display: inline-block;
-  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
   .dot-A { background: var(--accent-a); }
   .dot-B { background: var(--accent-b); }
   .dot-C { background: var(--accent-c); }
 
   /* ── MAIN ── */
   main { max-width: 1100px; margin: 0 auto; padding: 32px; }
-
-  /* ── SECTION TITLES ── */
   .section-title {
-    font-family: 'DM Serif Display', serif;
-    font-size: 1.5rem;
-    margin-bottom: 24px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
+    font-family: 'DM Serif Display', serif; font-size: 1.5rem;
+    margin-bottom: 24px; display: flex; align-items: center; gap: 12px;
   }
-  .company-stripe {
-    width: 4px; height: 28px; border-radius: 2px;
-  }
+  .company-stripe { width: 4px; height: 28px; border-radius: 2px; }
   .stripe-A { background: var(--accent-a); }
   .stripe-B { background: var(--accent-b); }
   .stripe-C { background: var(--accent-c); }
 
-  /* ── FORM CARD ── */
+  /* ── CARDS & FORMS ── */
   .card {
-    background: var(--white);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 28px;
-    margin-bottom: 28px;
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 28px; margin-bottom: 28px;
   }
   .card h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: 20px; }
-
-  .form-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 16px;
-  }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
   .form-group { display: flex; flex-direction: column; gap: 6px; }
   .form-group label { font-size: .8rem; font-weight: 500; color: var(--muted); }
-  .form-group input,
-  .form-group select,
-  .form-group textarea {
-    padding: 10px 12px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    font-family: 'DM Sans', sans-serif;
-    font-size: .9rem;
-    color: var(--ink);
-    background: var(--bg);
-    transition: border-color .2s;
-    outline: none;
+  .form-group input, .form-group select, .form-group textarea {
+    padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius);
+    font-family: 'DM Sans', sans-serif; font-size: .9rem; color: var(--ink);
+    background: var(--bg); transition: border-color .2s; outline: none;
   }
-  .form-group input:focus,
-  .form-group select:focus,
-  .form-group textarea:focus {
-    border-color: var(--ink);
-    background: var(--white);
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    border-color: var(--ink); background: var(--white);
   }
   .form-group.full { grid-column: 1 / -1; }
   textarea { resize: vertical; min-height: 70px; }
 
   .btn {
-    padding: 11px 28px;
-    border: none;
-    border-radius: var(--radius);
-    font-family: 'DM Sans', sans-serif;
-    font-size: .9rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all .15s;
+    padding: 11px 28px; border: none; border-radius: var(--radius);
+    font-family: 'DM Sans', sans-serif; font-size: .9rem; font-weight: 600;
+    cursor: pointer; transition: all .15s;
   }
   .btn-primary { background: var(--ink); color: var(--white); }
   .btn-primary:hover { background: #333; }
@@ -173,25 +167,13 @@
   .btn-primary.C:hover { background: #186a3b; }
   .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
   .btn-ghost:hover { color: var(--ink); border-color: var(--ink); }
-
   .btn-row { display: flex; gap: 10px; margin-top: 20px; }
 
-  /* ── ROOM CARDS ── */
-  .rooms-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 16px;
-    margin-bottom: 28px;
-  }
+  /* ── ROOMS ── */
+  .rooms-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-bottom: 4px; }
   .room-card {
-    background: var(--white);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 20px;
-    cursor: pointer;
-    transition: all .2s;
-    position: relative;
-    overflow: hidden;
+    background: var(--white); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 20px; cursor: pointer; transition: all .2s; position: relative; overflow: hidden;
   }
   .room-card:hover { border-color: var(--ink); }
   .room-card.selected { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
@@ -199,174 +181,55 @@
   .room-card h4 { font-weight: 600; font-size: 1rem; margin-bottom: 4px; margin-top: 4px; }
   .room-card .room-cap { font-size: .8rem; color: var(--muted); }
   .room-card .room-features { font-size: .75rem; color: var(--muted); margin-top: 8px; }
-  .check-icon { position: absolute; top: 12px; right: 12px; width: 20px; height: 20px; border-radius: 50%; background: var(--ink); display: none; align-items: center; justify-content: center; }
+  .check-icon {
+    position: absolute; top: 12px; right: 12px; width: 20px; height: 20px;
+    border-radius: 50%; background: var(--ink); display: none; align-items: center; justify-content: center;
+  }
   .room-card.selected .check-icon { display: flex; }
   .check-icon svg { width: 12px; fill: white; }
 
-  /* ── BOOKINGS TABLE ── */
-  .bookings-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 16px;
-  }
+  /* ── TABLE ── */
+  .bookings-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
   .filter-row { display: flex; gap: 10px; flex-wrap: wrap; }
   .filter-chip {
-    padding: 6px 14px;
-    border-radius: 100px;
-    font-size: .8rem;
-    font-weight: 500;
-    border: 1px solid var(--border);
-    background: var(--white);
-    cursor: pointer;
-    transition: all .15s;
-    color: var(--muted);
+    padding: 6px 14px; border-radius: 100px; font-size: .8rem; font-weight: 500;
+    border: 1px solid var(--border); background: var(--white); cursor: pointer;
+    transition: all .15s; color: var(--muted);
   }
-  .filter-chip:hover, .filter-chip.active { background: var(--ink); color: var(--white); border-color: var(--ink); }
-  .filter-chip.active-A { background: var(--accent-a); color: var(--white); border-color: var(--accent-a); }
-  .filter-chip.active-B { background: var(--accent-b); color: var(--white); border-color: var(--accent-b); }
-  .filter-chip.active-C { background: var(--accent-c); color: var(--white); border-color: var(--accent-c); }
-
+  .filter-chip:hover { border-color: var(--ink); color: var(--ink); }
+  .filter-chip.active    { background: var(--ink);      color: var(--white); border-color: var(--ink);      }
+  .filter-chip.active-A  { background: var(--accent-a); color: var(--white); border-color: var(--accent-a); }
+  .filter-chip.active-B  { background: var(--accent-b); color: var(--white); border-color: var(--accent-b); }
+  .filter-chip.active-C  { background: var(--accent-c); color: var(--white); border-color: var(--accent-c); }
   table { width: 100%; border-collapse: collapse; }
   thead tr { border-bottom: 2px solid var(--border); }
   thead th { text-align: left; padding: 10px 14px; font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 500; }
   tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
   tbody tr:hover { background: rgba(0,0,0,.02); }
   tbody td { padding: 12px 14px; font-size: .9rem; }
-
-  .tag {
-    display: inline-flex;
-    align-items: center;
-    padding: 3px 10px;
-    border-radius: 100px;
-    font-size: .75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: .06em;
-  }
+  .tag { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 100px; font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
   .tag-A { background: #fde8e7; color: var(--accent-a); }
   .tag-B { background: #e8f0fb; color: var(--accent-b); }
   .tag-C { background: #e8f8ed; color: var(--accent-c); }
-
-  .action-btn {
-    padding: 4px 10px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: none;
-    font-size: .8rem;
-    cursor: pointer;
-    color: var(--muted);
-    transition: all .15s;
-    margin-left: 6px;
-  }
+  .action-btn { padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: none; font-size: .8rem; cursor: pointer; color: var(--muted); transition: all .15s; margin-left: 6px; }
   .action-btn:hover { color: #c0392b; border-color: #c0392b; }
 
-  /* ── CALENDAR VIEW ── */
-  .cal-nav {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 20px;
-  }
+  /* ── CALENDAR ── */
+  .cal-nav { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
   .cal-nav h3 { font-family: 'DM Serif Display', serif; font-size: 1.3rem; flex: 1; }
   .cal-btn { background: var(--white); border: 1px solid var(--border); padding: 8px 16px; border-radius: var(--radius); cursor: pointer; font-size: .85rem; transition: all .15s; }
   .cal-btn:hover { border-color: var(--ink); }
-
   .calendar { display: flex; flex-direction: column; gap: 2px; }
-  .cal-header-row {
-    display: grid;
-    grid-template-columns: 80px repeat(5, 1fr);
-    gap: 2px;
-    margin-bottom: 4px;
-  }
-  .cal-header-cell {
-    padding: 10px 8px;
-    text-align: center;
-    font-size: .78rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: .08em;
-    color: var(--muted);
-  }
+  .cal-header-row { display: grid; grid-template-columns: 80px repeat(5, 1fr); gap: 2px; margin-bottom: 4px; }
+  .cal-header-cell { padding: 10px 8px; text-align: center; font-size: .78rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
   .cal-header-cell.today-col { color: var(--ink); background: rgba(0,0,0,.04); border-radius: var(--radius); }
-  .cal-row {
-    display: grid;
-    grid-template-columns: 80px repeat(5, 1fr);
-    gap: 2px;
-    align-items: stretch;
-    min-height: 52px;
-  }
+  .cal-row { display: grid; grid-template-columns: 80px repeat(5, 1fr); gap: 2px; min-height: 52px; }
   .time-label { font-size: .78rem; color: var(--muted); padding: 4px 8px; display: flex; align-items: center; justify-content: flex-end; }
-  .cal-cell {
-    background: var(--white);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 4px;
-    min-height: 52px;
-    cursor: pointer;
-    transition: background .1s;
-    position: relative;
-    overflow: hidden;
-  }
-  .cal-cell:hover { background: #f0ede6; }
-  .cal-event {
-    border-radius: 2px;
-    padding: 3px 6px;
-    font-size: .72rem;
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-bottom: 2px;
-    cursor: pointer;
-  }
+  .cal-cell { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); padding: 4px; min-height: 52px; }
+  .cal-event { border-radius: 2px; padding: 3px 6px; font-size: .72rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
   .ev-A { background: #fde8e7; color: var(--accent-a); }
   .ev-B { background: #e8f0fb; color: var(--accent-b); }
   .ev-C { background: #e8f8ed; color: var(--accent-c); }
-
-  /* ── TOAST ── */
-  .toast-container { position: fixed; bottom: 28px; right: 28px; display: flex; flex-direction: column; gap: 10px; z-index: 999; }
-  .toast {
-    background: var(--ink);
-    color: var(--white);
-    padding: 14px 20px;
-    border-radius: var(--radius);
-    font-size: .88rem;
-    max-width: 320px;
-    animation: slideIn .3s ease;
-    box-shadow: 0 8px 24px rgba(0,0,0,.2);
-  }
-  .toast.success { background: var(--success); }
-  .toast.error { background: #c0392b; }
-  @keyframes slideIn { from { transform: translateX(50px); opacity: 0; } to { transform: none; opacity: 1; } }
-
-  /* ── MODAL ── */
-  .modal-overlay {
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,.45);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 200;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity .2s;
-  }
-  .modal-overlay.open { opacity: 1; pointer-events: auto; }
-  .modal {
-    background: var(--white);
-    border-radius: var(--radius);
-    padding: 32px;
-    width: 480px;
-    max-width: 95vw;
-    transform: translateY(16px);
-    transition: transform .2s;
-  }
-  .modal-overlay.open .modal { transform: none; }
-  .modal h2 { font-family: 'DM Serif Display', serif; font-size: 1.4rem; margin-bottom: 6px; }
-  .modal p { font-size: .88rem; color: var(--muted); margin-bottom: 20px; }
-  .modal-info { background: var(--bg); border-radius: var(--radius); padding: 16px; margin-bottom: 20px; font-size: .88rem; }
-  .modal-info strong { display: block; font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 2px; }
 
   /* ── STATS ── */
   .stats-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; margin-bottom: 28px; }
@@ -374,69 +237,86 @@
   .stat-card .stat-val { font-family: 'DM Serif Display', serif; font-size: 2rem; line-height: 1; margin-bottom: 4px; }
   .stat-card .stat-label { font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
 
+  /* ── TOAST ── */
+  .toast-container { position: fixed; bottom: 28px; right: 28px; display: flex; flex-direction: column; gap: 10px; z-index: 999; }
+  .toast { background: var(--ink); color: var(--white); padding: 14px 20px; border-radius: var(--radius); font-size: .88rem; max-width: 340px; animation: slideIn .3s ease; box-shadow: 0 8px 24px rgba(0,0,0,.2); }
+  .toast.success { background: var(--success); }
+  .toast.error   { background: #c0392b; }
+  @keyframes slideIn { from { transform: translateX(50px); opacity:0 } to { transform:none; opacity:1 } }
+
+  /* ── MODAL ── */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 200; opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .modal-overlay.open { opacity: 1; pointer-events: auto; }
+  .modal { background: var(--white); border-radius: var(--radius); padding: 32px; width: 480px; max-width: 95vw; transform: translateY(16px); transition: transform .2s; }
+  .modal-overlay.open .modal { transform: none; }
+  .modal h2 { font-family: 'DM Serif Display', serif; font-size: 1.4rem; margin-bottom: 6px; }
+  .modal p  { font-size: .88rem; color: var(--muted); margin-bottom: 20px; }
+  .modal-info { background: var(--bg); border-radius: var(--radius); padding: 16px; margin-bottom: 20px; font-size: .88rem; }
+  .modal-info strong { display: block; font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 2px; }
+
   /* ── EMPTY ── */
   .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
   .empty .empty-icon { font-size: 2.5rem; margin-bottom: 12px; }
-  .empty p { font-size: .9rem; }
 
-  /* ── PAGE SECTIONS ── */
+  /* ── PAGES ── */
   .page { display: none; }
   .page.active { display: block; }
 
   @media (max-width: 600px) {
-    main { padding: 16px; }
-    .tabs { padding: 0 16px; }
-    header { padding: 0 16px; }
+    main { padding: 16px; } .tabs { padding: 0 16px; } header { padding: 0 16px; }
     .form-grid { grid-template-columns: 1fr; }
-    .cal-header-row, .cal-row { grid-template-columns: 48px repeat(5, 1fr); }
+    .cal-header-row, .cal-row { grid-template-columns: 48px repeat(5,1fr); }
   }
 </style>
 </head>
 <body>
 
+<!-- Setup-Banner (verschwindet sobald Firebase konfiguriert) -->
+<div id="setup-banner">
+  ⚠️ <strong>Einrichtung nötig:</strong> Bitte ersetzen Sie die Firebase-Konfiguration in dieser Datei.
+  <a href="#" onclick="document.getElementById('setup-banner').classList.add('hidden')">Ausblenden</a>
+</div>
+
+<!-- Verbindungsstatus -->
+<div id="status-bar">
+  <span class="status-dot"></span>
+  <span id="status-text">Verbunden mit Firebase – Echtzeit-Sync aktiv</span>
+</div>
+
 <header>
   <h1>🏢 RoomBook</h1>
-  <span class="company-badge" id="header-badge">Firma A</span>
+  <div class="header-right">
+    <span id="sync-icon" class="sync-icon">🔄</span>
+    <span class="company-badge" id="header-badge">Firma A</span>
+  </div>
 </header>
 
 <nav class="tabs">
-  <button class="tab-btn active" onclick="showPage('buchen')">
-    <span class="dot dot-A"></span> Buchen
-  </button>
-  <button class="tab-btn" onclick="showPage('kalender')">
-    📅 Kalender
-  </button>
-  <button class="tab-btn" onclick="showPage('liste')">
-    📋 Alle Buchungen
-  </button>
+  <button class="tab-btn active" onclick="showPage('buchen')"><span class="dot dot-A"></span> Buchen</button>
+  <button class="tab-btn" onclick="showPage('kalender')">📅 Kalender</button>
+  <button class="tab-btn" onclick="showPage('liste')">📋 Alle Buchungen</button>
 </nav>
 
 <main>
 
-  <!-- ══════════ PAGE: BUCHEN ══════════ -->
+  <!-- ══ BUCHEN ══ -->
   <div id="page-buchen" class="page active">
     <div class="section-title">
       <div class="company-stripe" id="form-stripe"></div>
       Neues Zimmer reservieren
     </div>
-
-    <!-- Firma Auswahl -->
     <div class="card">
       <h3>Firma auswählen</h3>
-      <div class="form-grid" style="grid-template-columns: repeat(3,1fr)">
+      <div class="form-grid" style="grid-template-columns:repeat(3,1fr)">
         <button class="btn btn-primary A" onclick="selectCompany('A')">🔴 Firma A</button>
         <button class="btn btn-primary B" onclick="selectCompany('B')">🔵 Firma B</button>
         <button class="btn btn-primary C" onclick="selectCompany('C')">🟢 Firma C</button>
       </div>
     </div>
-
-    <!-- Zimmer Wahl -->
     <div class="card">
       <h3>Sitzungszimmer wählen</h3>
       <div class="rooms-grid" id="rooms-grid"></div>
     </div>
-
-    <!-- Formular -->
     <div class="card">
       <h3>Buchungsdetails</h3>
       <div class="form-grid">
@@ -472,7 +352,7 @@
     </div>
   </div>
 
-  <!-- ══════════ PAGE: KALENDER ══════════ -->
+  <!-- ══ KALENDER ══ -->
   <div id="page-kalender" class="page">
     <div class="cal-nav">
       <h3 id="cal-title"></h3>
@@ -485,33 +365,24 @@
     </div>
   </div>
 
-  <!-- ══════════ PAGE: LISTE ══════════ -->
+  <!-- ══ LISTE ══ -->
   <div id="page-liste" class="page">
     <div class="bookings-header">
       <div class="section-title" style="margin-bottom:0">Alle Buchungen</div>
     </div>
-
     <div class="stats-row" id="stats-row"></div>
-
     <div class="filter-row" style="margin-bottom:18px">
       <button class="filter-chip active" id="chip-all" onclick="filterBookings('all')">Alle</button>
       <button class="filter-chip" id="chip-A" onclick="filterBookings('A')">🔴 Firma A</button>
       <button class="filter-chip" id="chip-B" onclick="filterBookings('B')">🔵 Firma B</button>
       <button class="filter-chip" id="chip-C" onclick="filterBookings('C')">🟢 Firma C</button>
     </div>
-
     <div class="card" style="padding:0; overflow:hidden">
       <table>
         <thead>
           <tr>
-            <th>Firma</th>
-            <th>Zimmer</th>
-            <th>Name</th>
-            <th>Datum</th>
-            <th>Zeit</th>
-            <th>Personen</th>
-            <th>Betreff</th>
-            <th></th>
+            <th>Firma</th><th>Zimmer</th><th>Name</th>
+            <th>Datum</th><th>Zeit</th><th>Personen</th><th>Betreff</th><th></th>
           </tr>
         </thead>
         <tbody id="bookings-tbody"></tbody>
@@ -529,81 +400,121 @@
 <div class="modal-overlay" id="modal-overlay">
   <div class="modal">
     <h2 id="modal-title">Buchung bestätigt ✓</h2>
-    <p id="modal-sub">Ihre Reservierung wurde erfolgreich gespeichert.</p>
+    <p id="modal-sub"></p>
     <div class="modal-info" id="modal-info"></div>
     <button class="btn btn-primary" style="width:100%" onclick="closeModal()">Schliessen</button>
   </div>
 </div>
 
-<!-- TOAST -->
 <div class="toast-container" id="toast-container"></div>
 
 <script>
-// ── DATA ──
+// ══════════════════════════════════════════
+// STAMMDATEN
+// ══════════════════════════════════════════
 const ROOMS = [
-  { id: 'panorama', name: 'Panorama', cap: 12, features: 'Beamer · Whiteboard · Kaffeemaschine' },
-  { id: 'alpen',    name: 'Alpenraum', cap: 6,  features: 'TV · Videokonferenz' },
-  { id: 'forum',   name: 'Forum',     cap: 20, features: 'Bühne · Mikrofon · Projektion' },
-  { id: 'studio',  name: 'Studio',    cap: 4,  features: 'Tischtelefon · Flipchart' },
+  { id:'panorama', name:'Panorama',  cap:12, features:'Beamer · Whiteboard · Kaffeemaschine' },
+  { id:'alpen',    name:'Alpenraum', cap:6,  features:'TV · Videokonferenz' },
+  { id:'forum',    name:'Forum',     cap:20, features:'Bühne · Mikrofon · Projektion' },
+  { id:'studio',   name:'Studio',    cap:4,  features:'Tischtelefon · Flipchart' },
 ];
-
 const TIMES = [];
-for (let h = 7; h <= 20; h++) {
-  TIMES.push(`${String(h).padStart(2,'0')}:00`);
-  if (h < 20) TIMES.push(`${String(h).padStart(2,'0')}:30`);
-}
-
+for (let h=7; h<=20; h++) { TIMES.push(`${String(h).padStart(2,'0')}:00`); if(h<20) TIMES.push(`${String(h).padStart(2,'0')}:30`); }
 const COMPANIES = {
-  A: { label: 'Firma A', color: '#c0392b' },
-  B: { label: 'Firma B', color: '#1a5276' },
-  C: { label: 'Firma C', color: '#1e8449' },
+  A: { label:'Firma A', color:'#c0392b' },
+  B: { label:'Firma B', color:'#1a5276' },
+  C: { label:'Firma C', color:'#1e8449' },
 };
 
-let bookings = JSON.parse(localStorage.getItem('rb_bookings') || '[]');
+// ══════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════
+let bookings = [];
 let selectedCompany = 'A';
-let selectedRoom = null;
-let calWeekOffset = 0;
-let activeFilter = 'all';
+let selectedRoom    = null;
+let calWeekOffset   = 0;
+let activeFilter    = 'all';
+let fbConnected     = false;
 
-// ── INIT ──
+// ══════════════════════════════════════════
+// FIREBASE INITIALISIERUNG
+// ══════════════════════════════════════════
+document.addEventListener('fb-ready', () => {
+  fbConnected = true;
+  document.getElementById('setup-banner').classList.add('hidden');
+  const sb = document.getElementById('status-bar');
+  sb.classList.add('visible');
+
+  const syncIcon = document.getElementById('sync-icon');
+  syncIcon.classList.add('syncing');
+
+  // Echtzeit-Listener: wird bei jeder Änderung aufgerufen
+  window._fbListen(data => {
+    bookings = data;
+    syncIcon.classList.remove('syncing');
+    renderCalendar();
+    renderStats();
+    renderBookings();
+  });
+});
+
+// Fallback: Firebase nicht konfiguriert → lokaler Modus
+setTimeout(() => {
+  if (!fbConnected) {
+    document.getElementById('status-bar').innerHTML =
+      '<span>⚠️ Offline-Modus – Daten nur lokal gespeichert. Firebase noch nicht konfiguriert.</span>';
+    document.getElementById('status-bar').classList.add('visible', 'error');
+    bookings = JSON.parse(localStorage.getItem('rb_bookings_fallback') || '[]');
+    renderAll();
+  }
+}, 3000);
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
 function init() {
   buildRoomsGrid();
   buildTimeSelects();
   setDefaultDate();
   updateCompanyUI();
+  renderAll();
+}
+
+function renderAll() {
   renderCalendar();
   renderStats();
   renderBookings();
 }
 
+// ══════════════════════════════════════════
+// UI AUFBAU
+// ══════════════════════════════════════════
 function buildRoomsGrid() {
-  const g = document.getElementById('rooms-grid');
-  g.innerHTML = ROOMS.map(r => `
-    <div class="room-card ${selectedRoom === r.id ? 'selected' : ''}" id="rc-${r.id}" onclick="selectRoom('${r.id}')">
+  document.getElementById('rooms-grid').innerHTML = ROOMS.map(r => `
+    <div class="room-card ${selectedRoom===r.id?'selected':''}" id="rc-${r.id}" onclick="selectRoom('${r.id}')">
       <div class="room-color-bar" style="background:${COMPANIES[selectedCompany].color}"></div>
       <div class="check-icon"><svg viewBox="0 0 12 10"><polyline points="1,5 4,8 11,1" fill="none" stroke="white" stroke-width="2"/></svg></div>
       <h4>${r.name}</h4>
       <div class="room-cap">👥 bis ${r.cap} Personen</div>
       <div class="room-features">${r.features}</div>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
 function buildTimeSelects() {
   ['f-start','f-end'].forEach(id => {
-    const sel = document.getElementById(id);
-    sel.innerHTML = TIMES.map(t => `<option value="${t}">${t}</option>`).join('');
+    document.getElementById(id).innerHTML = TIMES.map(t=>`<option value="${t}">${t}</option>`).join('');
   });
   document.getElementById('f-start').value = '09:00';
   document.getElementById('f-end').value   = '10:00';
 }
 
 function setDefaultDate() {
-  const today = new Date();
-  document.getElementById('f-date').value = today.toISOString().split('T')[0];
+  document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
 }
 
-// ── COMPANY & ROOM ──
+// ══════════════════════════════════════════
+// FIRMA & ZIMMER
+// ══════════════════════════════════════════
 function selectCompany(c) {
   selectedCompany = c;
   updateCompanyUI();
@@ -615,12 +526,8 @@ function updateCompanyUI() {
   const badge = document.getElementById('header-badge');
   badge.className = 'company-badge ' + selectedCompany;
   badge.textContent = COMPANIES[selectedCompany].label;
-
-  const stripe = document.getElementById('form-stripe');
-  stripe.className = 'company-stripe stripe-' + selectedCompany;
-
-  const btn = document.getElementById('submit-btn');
-  btn.className = 'btn btn-primary ' + selectedCompany;
+  document.getElementById('form-stripe').className = 'company-stripe stripe-' + selectedCompany;
+  document.getElementById('submit-btn').className  = 'btn btn-primary ' + selectedCompany;
 }
 
 function selectRoom(id) {
@@ -630,8 +537,10 @@ function selectRoom(id) {
   if (card) card.classList.add('selected');
 }
 
-// ── FORM ──
-function submitBooking() {
+// ══════════════════════════════════════════
+// BUCHUNG SPEICHERN / LÖSCHEN
+// ══════════════════════════════════════════
+async function submitBooking() {
   const name  = document.getElementById('f-name').value.trim();
   const date  = document.getElementById('f-date').value;
   const start = document.getElementById('f-start').value;
@@ -644,38 +553,51 @@ function submitBooking() {
   if (!selectedRoom) return toast('Bitte ein Zimmer wählen.', 'error');
   if (start >= end)  return toast('Endzeit muss nach Startzeit liegen.', 'error');
 
-  // Conflict check
   const conflict = bookings.find(b =>
-    b.room === selectedRoom && b.date === date &&
-    !(end <= b.start || start >= b.end)
+    b.room === selectedRoom && b.date === date && !(end <= b.start || start >= b.end)
   );
-  if (conflict) return toast(`Konflikt: ${conflict.company} hat "${conflict.name}" zu dieser Zeit gebucht.`, 'error');
+  if (conflict) return toast(`Konflikt: ${COMPANIES[conflict.company].label} – ${conflict.name} (${conflict.start}–${conflict.end})`, 'error');
 
   const room = ROOMS.find(r => r.id === selectedRoom);
-  const booking = {
-    id: Date.now(),
-    company: selectedCompany,
-    room: selectedRoom,
-    roomName: room.name,
-    name, date, start, end,
-    people: ppl || '–',
-    note
+  const data = {
+    company: selectedCompany, room: selectedRoom, roomName: room.name,
+    name, date, start, end, people: ppl||'–', note,
+    createdAt: Date.now()
   };
 
-  bookings.push(booking);
-  save();
+  document.getElementById('sync-icon').classList.add('syncing');
 
-  showModal(booking);
+  if (fbConnected && window._fbPush) {
+    await window._fbPush(data);
+  } else {
+    // Offline-Fallback
+    data.fbKey = Date.now().toString();
+    bookings.push(data);
+    localStorage.setItem('rb_bookings_fallback', JSON.stringify(bookings));
+    renderAll();
+  }
+
+  showModal(data);
   resetForm();
-  renderCalendar();
-  renderStats();
-  renderBookings();
+}
+
+async function deleteBooking(key) {
+  if (!confirm('Buchung wirklich löschen?')) return;
+  document.getElementById('sync-icon').classList.add('syncing');
+  if (fbConnected && window._fbDelete) {
+    await window._fbDelete(key);
+  } else {
+    bookings = bookings.filter(b => b.fbKey !== key);
+    localStorage.setItem('rb_bookings_fallback', JSON.stringify(bookings));
+    renderAll();
+  }
+  toast('Buchung gelöscht.', 'success');
 }
 
 function resetForm() {
-  document.getElementById('f-name').value  = '';
+  document.getElementById('f-name').value   = '';
   document.getElementById('f-people').value = '';
-  document.getElementById('f-note').value  = '';
+  document.getElementById('f-note').value   = '';
   setDefaultDate();
   document.getElementById('f-start').value = '09:00';
   document.getElementById('f-end').value   = '10:00';
@@ -683,105 +605,65 @@ function resetForm() {
   buildRoomsGrid();
 }
 
-function deleteBooking(id) {
-  bookings = bookings.filter(b => b.id !== id);
-  save();
-  renderBookings();
-  renderStats();
-  renderCalendar();
-  toast('Buchung gelöscht.', 'success');
-}
-
-// ── CALENDAR ──
-function changeWeek(dir) {
-  if (dir === 0) calWeekOffset = 0;
-  else calWeekOffset += dir;
-  renderCalendar();
-}
+// ══════════════════════════════════════════
+// KALENDER
+// ══════════════════════════════════════════
+function changeWeek(dir) { calWeekOffset = dir===0 ? 0 : calWeekOffset+dir; renderCalendar(); }
 
 function getWeekDays(offset) {
-  const today = new Date();
-  const dow = today.getDay() || 7;
+  const today = new Date(), dow = today.getDay()||7;
   const monday = new Date(today);
-  monday.setDate(today.getDate() - dow + 1 + offset * 7);
-  return Array.from({length:5}, (_,i) => {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    return d;
-  });
-}
-
-function fmt(d) {
-  return d.toISOString().split('T')[0];
+  monday.setDate(today.getDate()-dow+1+offset*7);
+  return Array.from({length:5},(_,i)=>{ const d=new Date(monday); d.setDate(monday.getDate()+i); return d; });
 }
 
 function renderCalendar() {
   const days = getWeekDays(calWeekOffset);
   const todayStr = fmt(new Date());
-  const MONTHS = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
-  const DAYS = ['Mo','Di','Mi','Do','Fr'];
+  const MONTHS=['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+  const DAYS=['Mo','Di','Mi','Do','Fr'];
+  document.getElementById('cal-title').textContent =
+    `${days[0].getDate()}. ${MONTHS[days[0].getMonth()]} – ${days[4].getDate()}. ${MONTHS[days[4].getMonth()]} ${days[4].getFullYear()}`;
 
-  const title = `${days[0].getDate()}. ${MONTHS[days[0].getMonth()]} – ${days[4].getDate()}. ${MONTHS[days[4].getMonth()]} ${days[4].getFullYear()}`;
-  document.getElementById('cal-title').textContent = title;
-
-  const SHOW_HOURS = [];
-  for (let h = 7; h <= 19; h++) SHOW_HOURS.push(h);
-
-  let html = '<div class="cal-header-row">';
-  html += '<div></div>';
-  days.forEach((d,i) => {
-    const isToday = fmt(d) === todayStr;
-    html += `<div class="cal-header-cell ${isToday ? 'today-col' : ''}">${DAYS[i]}<br>${d.getDate()}.${d.getMonth()+1}</div>`;
+  const SHOW_HOURS = Array.from({length:13},(_,i)=>i+7);
+  let html = '<div class="cal-header-row"><div></div>';
+  days.forEach((d,i)=>{
+    html += `<div class="cal-header-cell ${fmt(d)===todayStr?'today-col':''}">${DAYS[i]}<br>${d.getDate()}.${d.getMonth()+1}</div>`;
   });
   html += '</div><div class="calendar">';
-
-  SHOW_HOURS.forEach(h => {
+  SHOW_HOURS.forEach(h=>{
     html += '<div class="cal-row">';
     html += `<div class="time-label">${String(h).padStart(2,'0')}:00</div>`;
-    days.forEach(d => {
-      const dateStr = fmt(d);
-      const dayBookings = bookings.filter(b => {
-        if (b.date !== dateStr) return false;
-        const bs = parseInt(b.start), be = parseInt(b.end);
-        return bs <= h && be > h;
-      });
-      html += `<div class="cal-cell">`;
-      dayBookings.forEach(b => {
-        html += `<div class="cal-event ev-${b.company}" title="${b.name} – ${b.start}–${b.end}">${b.roomName}: ${b.name}</div>`;
-      });
-      html += '</div>';
+    days.forEach(d=>{
+      const evs = bookings.filter(b => b.date===fmt(d) && parseInt(b.start)<=h && parseInt(b.end)>h);
+      html += `<div class="cal-cell">${evs.map(b=>`<div class="cal-event ev-${b.company}">${b.roomName}: ${b.name}</div>`).join('')}</div>`;
     });
     html += '</div>';
   });
   html += '</div>';
-
   document.getElementById('cal-container').innerHTML = html;
 }
 
-// ── BOOKINGS LIST ──
+// ══════════════════════════════════════════
+// BUCHUNGSLISTE
+// ══════════════════════════════════════════
 function filterBookings(f) {
   activeFilter = f;
   document.querySelectorAll('.filter-chip').forEach(c => {
     c.className = 'filter-chip';
-    if (c.id === 'chip-' + f) c.classList.add('active' + (f !== 'all' ? '-' + f : ''));
+    if (c.id==='chip-'+f) c.classList.add(f==='all'?'active':'active-'+f);
   });
   renderBookings();
 }
 
 function renderBookings() {
-  const filtered = activeFilter === 'all' ? bookings : bookings.filter(b => b.company === activeFilter);
-  const sorted = [...filtered].sort((a,b) => (a.date+a.start) > (b.date+b.start) ? -1 : 1);
+  const filtered = activeFilter==='all' ? bookings : bookings.filter(b=>b.company===activeFilter);
+  const sorted = [...filtered].sort((a,b)=>(a.date+a.start)>(b.date+b.start)?-1:1);
   const tbody = document.getElementById('bookings-tbody');
   const empty = document.getElementById('bookings-empty');
-
-  if (sorted.length === 0) {
-    tbody.innerHTML = '';
-    empty.style.display = '';
-    return;
-  }
+  if (!sorted.length) { tbody.innerHTML=''; empty.style.display=''; return; }
   empty.style.display = 'none';
-
-  tbody.innerHTML = sorted.map(b => `
+  tbody.innerHTML = sorted.map(b=>`
     <tr>
       <td><span class="tag tag-${b.company}">${COMPANIES[b.company].label}</span></td>
       <td><strong>${b.roomName}</strong></td>
@@ -789,88 +671,58 @@ function renderBookings() {
       <td>${formatDate(b.date)}</td>
       <td>${b.start} – ${b.end}</td>
       <td>${b.people}</td>
-      <td style="color:var(--muted);font-size:.85rem">${b.note || '–'}</td>
-      <td><button class="action-btn" onclick="deleteBooking(${b.id})">✕</button></td>
-    </tr>
-  `).join('');
+      <td style="color:var(--muted);font-size:.85rem">${b.note||'–'}</td>
+      <td><button class="action-btn" onclick="deleteBooking('${b.fbKey}')">✕</button></td>
+    </tr>`).join('');
 }
 
 function renderStats() {
-  const row = document.getElementById('stats-row');
-  const total = bookings.length;
-  const perCompany = Object.entries(COMPANIES).map(([k,v]) => ({
-    ...v, key: k, count: bookings.filter(b => b.company === k).length
-  }));
-  const today = bookings.filter(b => b.date === fmt(new Date())).length;
-
-  row.innerHTML = `
+  document.getElementById('stats-row').innerHTML = `
+    <div class="stat-card"><div class="stat-val">${bookings.length}</div><div class="stat-label">Buchungen total</div></div>
+    <div class="stat-card"><div class="stat-val">${bookings.filter(b=>b.date===fmt(new Date())).length}</div><div class="stat-label">Heute</div></div>
+    ${Object.entries(COMPANIES).map(([k,v])=>`
     <div class="stat-card">
-      <div class="stat-val">${total}</div>
-      <div class="stat-label">Buchungen total</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-val">${today}</div>
-      <div class="stat-label">Heute</div>
-    </div>
-    ${perCompany.map(c => `
-    <div class="stat-card">
-      <div class="stat-val" style="color:${c.color}">${c.count}</div>
-      <div class="stat-label">${c.label}</div>
-    </div>`).join('')}
-  `;
+      <div class="stat-val" style="color:${v.color}">${bookings.filter(b=>b.company===k).length}</div>
+      <div class="stat-label">${v.label}</div>
+    </div>`).join('')}`;
 }
 
-// ── MODAL ──
+// ══════════════════════════════════════════
+// MODAL & UTILS
+// ══════════════════════════════════════════
 function showModal(b) {
-  document.getElementById('modal-title').textContent = 'Buchung bestätigt ✓';
   document.getElementById('modal-sub').textContent = `${COMPANIES[b.company].label} – ${b.roomName}`;
   document.getElementById('modal-info').innerHTML = `
     <strong>Raum</strong>${b.roomName}
     <br><strong style="margin-top:10px;display:block">Datum</strong>${formatDate(b.date)}
     <br><strong style="margin-top:10px;display:block">Zeit</strong>${b.start} – ${b.end}
     <br><strong style="margin-top:10px;display:block">Reserviert von</strong>${b.name}
-    ${b.note ? `<br><strong style="margin-top:10px;display:block">Betreff</strong>${b.note}` : ''}
-  `;
+    ${b.note?`<br><strong style="margin-top:10px;display:block">Betreff</strong>${b.note}`:''}`;
   document.getElementById('modal-overlay').classList.add('open');
 }
-function closeModal() {
-  document.getElementById('modal-overlay').classList.remove('open');
-}
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
 
-// ── UTILS ──
 function showPage(p) {
-  document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
-  document.getElementById('page-' + p).classList.add('active');
-  document.querySelectorAll('.tab-btn').forEach((btn, i) => {
-    btn.classList.toggle('active', ['buchen','kalender','liste'][i] === p);
+  document.querySelectorAll('.page').forEach(el=>el.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach((btn,i)=>{
+    btn.classList.toggle('active', ['buchen','kalender','liste'][i]===p);
   });
-  if (p === 'kalender') renderCalendar();
-  if (p === 'liste') renderBookings();
+  if(p==='kalender') renderCalendar();
+  if(p==='liste') renderBookings();
 }
 
-function formatDate(d) {
-  if (!d) return '';
-  const [y,m,day] = d.split('-');
-  return `${day}.${m}.${y}`;
-}
+function fmt(d) { return d.toISOString().split('T')[0]; }
+function formatDate(d) { if(!d) return ''; const [y,m,day]=d.split('-'); return `${day}.${m}.${y}`; }
 
-function toast(msg, type = '') {
+function toast(msg, type='') {
   const c = document.getElementById('toast-container');
   const t = document.createElement('div');
-  t.className = 'toast ' + type;
-  t.textContent = msg;
-  c.appendChild(t);
-  setTimeout(() => t.remove(), 3500);
+  t.className='toast '+type; t.textContent=msg; c.appendChild(t);
+  setTimeout(()=>t.remove(), 3500);
 }
 
-function save() {
-  localStorage.setItem('rb_bookings', JSON.stringify(bookings));
-}
-
-// ── CLOSE MODAL ON OVERLAY CLICK ──
-document.getElementById('modal-overlay').addEventListener('click', function(e) {
-  if (e.target === this) closeModal();
-});
+document.getElementById('modal-overlay').addEventListener('click', function(e) { if(e.target===this) closeModal(); });
 
 init();
 </script>
