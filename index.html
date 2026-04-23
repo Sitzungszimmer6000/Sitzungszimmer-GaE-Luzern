@@ -604,7 +604,7 @@ async function submitBooking() {
   const room = ROOMS.find(r => r.id === selectedRoom);
   const data = {
     company: selectedCompany, room: selectedRoom, roomName: room.name,
-    name, date, start, end, people: ppl||'–', note,
+    name, date, start, end, note,
     createdAt: Date.now()
   };
 
