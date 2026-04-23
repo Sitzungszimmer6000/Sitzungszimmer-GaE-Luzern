@@ -759,7 +759,7 @@ function renderBookings() {
       <td>${formatDate(b.date)}</td>
       <td>${b.start} – ${b.end}</td>
       <td style="color:var(--muted);font-size:.85rem">${b.note||'–'}</td>
-      <td>${b.company === selectedCompany ? `<button class="action-btn" onclick="deleteBooking('${b.fbKey}')">✕</button>` : ''}</td>
+      <td>${b.company === selectedCompany ? '<button class="action-btn" onclick="deleteBooking(\'' + b.fbKey + '\')">✕</button>' : ''}</td>
     </tr>`).join('');
 }
 
