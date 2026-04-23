@@ -723,7 +723,17 @@ function renderCalendar() {
         const slotMins  = h * 60;
         return startMins < (slotMins + 60) && endMins > slotMins;
       });
-      html += `<div class="cal-cell">${evs.map(b=>`<div class="cal-event ev-${b.company}">${b.roomName}: ${b.name}</div>`).join('')}</div>`;
+      // Only show label in the FIRST slot of the booking
+      const evsHtml = evs.map(b => {
+        const [sh] = b.start.split(':').map(Number);
+        const isFirst = sh === h;
+        if (isFirst) {
+          return `<div class="cal-event ev-${b.company}" style="font-weight:600">${b.start}–${b.end} ${b.roomName}: ${b.name}</div>`;
+        } else {
+          return `<div class="cal-event ev-${b.company}" style="opacity:0.35;font-size:.6rem">│</div>`;
+        }
+      }).join('');
+      html += `<div class="cal-cell">${evsHtml}</div>`;
     });
     html += '</div>';
   });
