@@ -723,16 +723,15 @@ function renderCalendar() {
         const slotMins  = h * 60;
         return startMins < (slotMins + 60) && endMins > slotMins;
       });
-      // Only show label in the FIRST slot of the booking
       const evsHtml = evs.map(b => {
         const [sh, sm] = b.start.split(':').map(Number);
         const startMins = sh * 60 + sm;
         const slotMins  = h * 60;
         const isFirst = startMins >= slotMins && startMins < slotMins + 60;
         if (isFirst) {
-          return `<div class="cal-event ev-${b.company}" style="font-weight:600">${b.start}–${b.end} | ${b.roomName}: ${b.name}</div>`;
+          return `<div class="cal-event ev-${b.company}" style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block" title="${b.start}–${b.end} ${b.roomName} ${b.name}">${b.start}–${b.end} ${b.name}</div>`;
         } else {
-          return `<div class="cal-event ev-${b.company}" style="opacity:0.3;font-size:.6rem;text-align:center">│</div>`;
+          return `<div class="cal-event ev-${b.company}" style="opacity:0.25;padding:0 4px;min-height:8px">&nbsp;</div>`;
         }
       }).join('');
       html += `<div class="cal-cell">${evsHtml}</div>`;
