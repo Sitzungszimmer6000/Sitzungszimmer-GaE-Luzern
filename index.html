@@ -244,37 +244,41 @@
   .cal-btn { background: var(--white); border: 1px solid var(--border); padding: 8px 16px; border-radius: var(--radius); cursor: pointer; font-size: .85rem; transition: all .15s; }
   .cal-btn:hover { border-color: var(--ink); }
 
-  /* New grid-based calendar */
-  --cal-hour-h: 54px;
-  .cal-grid-wrap { display: grid; grid-template-columns: 80px repeat(5, 1fr); gap: 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--border); gap: 1px; }
-  .cal-header-row { display: contents; }
-  .cal-header-cell { padding: 10px 8px; text-align: center; font-size: .78rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); background: var(--white); }
-  .cal-header-cell.today-col { color: var(--ink); background: rgba(26,23,20,.04); }
-  .cal-corner { background: var(--white); }
+  /* Calendar wrapper: full flex row */
+  .cal-outer { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--white); }
 
-  /* Time column + day columns */
-  .cal-time-col { display: flex; flex-direction: column; background: var(--white); }
-  .cal-time-slot { height: var(--cal-hour-h, 54px); display: flex; align-items: flex-start; justify-content: flex-end; padding: 3px 8px 0; font-size: .72rem; color: var(--muted); border-top: 1px solid var(--border); box-sizing: border-box; }
+  /* Header row */
+  .cal-head-row { display: flex; border-bottom: 2px solid var(--border); background: var(--white); }
+  .cal-head-corner { width: 64px; flex-shrink: 0; }
+  .cal-head-cell { flex: 1; padding: 10px 6px; text-align: center; font-size: .78rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); border-left: 1px solid var(--border); }
+  .cal-head-cell.today-col { color: var(--ink); background: rgba(26,23,20,.04); }
+
+  /* Body row: time col + day cols side by side */
+  .cal-body { display: flex; }
+  .cal-time-col { width: 64px; flex-shrink: 0; display: flex; flex-direction: column; }
+  .cal-time-slot { height: 54px; display: flex; align-items: flex-start; justify-content: flex-end; padding: 3px 8px 0; font-size: .72rem; color: var(--muted); border-top: 1px solid var(--border); box-sizing: border-box; }
   .cal-time-slot:first-child { border-top: none; }
 
-  .cal-day-col { position: relative; background: var(--white); }
-  .cal-day-col.today-day { background: #fafaf7; }
-  .cal-hour-line { position: absolute; left: 0; right: 0; border-top: 1px solid var(--border); }
+  .cal-days-row { display: flex; flex: 1; }
+  .cal-day-col { flex: 1; position: relative; border-left: 1px solid var(--border); box-sizing: border-box; }
+  .cal-day-col.today-col { background: rgba(26,23,20,.02); }
+  .cal-hour-line { position: absolute; left: 0; right: 0; border-top: 1px solid var(--border); pointer-events: none; }
 
-  /* Event blocks – absolutely positioned */
+  /* Event blocks – absolutely positioned over day column */
   .cal-event-block {
-    position: absolute; left: 2px; right: 2px;
+    position: absolute; left: 3px; right: 3px;
     border-radius: 3px; padding: 4px 6px;
     font-size: .72rem; font-weight: 600;
     overflow: hidden; cursor: pointer;
     border-left: 3px solid transparent;
     transition: filter .15s;
     box-sizing: border-box;
+    z-index: 1;
   }
-  .cal-event-block:hover { filter: brightness(.92); }
-  .cal-event-block .ev-time { font-size: .65rem; opacity: .75; display: block; margin-bottom: 1px; }
+  .cal-event-block:hover { filter: brightness(.92); z-index: 2; }
+  .cal-event-block .ev-time  { font-size: .64rem; opacity: .75; display: block; margin-bottom: 1px; }
   .cal-event-block .ev-label { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .cal-event-block .ev-room  { display: block; font-size: .65rem; opacity: .6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cal-event-block .ev-room  { display: block; font-size: .64rem; opacity: .6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   .ev-A { background: #d6ecf8; color: var(--accent-a); border-color: var(--accent-a) !important; }
   .ev-B { background: #cdd8f0; color: var(--accent-b); border-color: var(--accent-b) !important; }
@@ -729,51 +733,52 @@ function renderCalendar() {
   document.getElementById('cal-title').textContent =
     `${days[0].getDate()}. ${MONTHS[days[0].getMonth()]} – ${days[4].getDate()}. ${MONTHS[days[4].getMonth()]} ${days[4].getFullYear()}`;
 
-  const HOUR_H   = 54;   // px per hour – must match CSS var(--cal-hour-h)
-  const START_H  = 7;    // first hour shown
-  const END_H    = 20;   // last hour shown (exclusive)
-  const HOURS    = Array.from({length: END_H - START_H}, (_, i) => i + START_H);
-  const TOTAL_H  = HOURS.length * HOUR_H;
-
-  // Helper: minutes from midnight → px from top
+  const HOUR_H  = 54;   // px per hour
+  const START_H = 7;
+  const END_H   = 20;
+  const HOURS   = Array.from({length: END_H - START_H}, (_, i) => i + START_H);
+  const TOTAL_H = HOURS.length * HOUR_H;
   const minsToTop = mins => (mins - START_H * 60) / 60 * HOUR_H;
 
-  // ── Header row ──
-  let html = '<div class="cal-grid-wrap">';
-  html += '<div class="cal-corner" style="background:var(--white);padding:10px 8px"></div>';
+  // ── Header ──
+  let html = '<div class="cal-outer">';
+  html += '<div class="cal-head-row">';
+  html += '<div class="cal-head-corner"></div>';
   days.forEach((d, i) => {
-    html += `<div class="cal-header-cell ${fmt(d)===todayStr?'today-col':''}">${DAYS[i]}<br>${d.getDate()}.${d.getMonth()+1}</div>`;
+    html += `<div class="cal-head-cell ${fmt(d)===todayStr?'today-col':''}">${DAYS[i]}<br>${d.getDate()}.${d.getMonth()+1}</div>`;
   });
+  html += '</div>';
 
-  // ── Time column ──
+  // ── Body ──
+  html += '<div class="cal-body">';
+
+  // Time column
   html += '<div class="cal-time-col">';
   HOURS.forEach(h => {
     html += `<div class="cal-time-slot">${String(h).padStart(2,'0')}:00</div>`;
   });
   html += '</div>';
 
-  // ── Day columns ──
+  // Day columns
+  html += '<div class="cal-days-row">';
   days.forEach(d => {
     const isToday = fmt(d) === todayStr;
-    html += `<div class="cal-day-col${isToday?' today-day':''}" style="height:${TOTAL_H}px">`;
+    html += `<div class="cal-day-col${isToday?' today-col':''}" style="height:${TOTAL_H}px">`;
 
-    // Hour grid lines
+    // Hour lines
     HOURS.forEach((h, i) => {
       html += `<div class="cal-hour-line" style="top:${i * HOUR_H}px"></div>`;
     });
 
-    // Bookings for this day
-    const dayBookings = bookings.filter(b => b.date === fmt(d));
-    dayBookings.forEach(b => {
+    // Bookings
+    bookings.filter(b => b.date === fmt(d)).forEach(b => {
       const [sh, sm] = b.start.split(':').map(Number);
       const [eh, em] = b.end.split(':').map(Number);
-      const startMins = sh * 60 + sm;
-      const endMins   = eh * 60 + em;
-      const top    = minsToTop(startMins);
-      const height = Math.max((endMins - startMins) / 60 * HOUR_H, 20);
+      const top    = minsToTop(sh * 60 + sm);
+      const height = Math.max((eh * 60 + em - sh * 60 - sm) / 60 * HOUR_H, 20);
       const co     = COMPANIES[b.company];
       html += `<div class="cal-event-block ev-${b.company}"
-        style="top:${top}px;height:${height}px;border-left-color:${co.color}"
+        style="top:${top}px;height:${height}px"
         title="${b.start}–${b.end} | ${b.roomName} | ${co.label} | ${b.name}"
         onclick='showModal(${JSON.stringify(b)})'>
         <span class="ev-time">${b.start}–${b.end}</span>
@@ -784,8 +789,8 @@ function renderCalendar() {
 
     html += '</div>';
   });
+  html += '</div></div></div>'; // cal-days-row, cal-body, cal-outer
 
-  html += '</div>';
   document.getElementById('cal-container').innerHTML = html;
   syncCalDropdowns();
 }
