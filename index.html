@@ -366,10 +366,7 @@
           <label>Endzeit</label>
           <select id="f-end"></select>
         </div>
-        <div class="form-group">
-          <label>Anzahl Teilnehmer</label>
-          <input type="number" id="f-people" placeholder="5" min="1" max="50">
-        </div>
+
         <div class="form-group full">
           <label>Betreff / Agenda (optional)</label>
           <textarea id="f-note" placeholder="Quartalsbesprechung, Präsentation..."></textarea>
@@ -386,9 +383,21 @@
   <div id="page-kalender" class="page">
     <div class="cal-nav">
       <h3 id="cal-title"></h3>
-      <button class="cal-btn" onclick="changeWeek(-1)">← Vorwoche</button>
-      <button class="cal-btn" onclick="changeWeek(0)">Heute</button>
-      <button class="cal-btn" onclick="changeWeek(1)">Nächste →</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="cal-btn" onclick="changeWeek(-1)">← Vorwoche</button>
+        <button class="cal-btn" onclick="changeWeek(0)">Heute</button>
+        <button class="cal-btn" onclick="changeWeek(1)">Nächste →</button>
+        <select id="cal-month-select" onchange="jumpToMonth()" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:.85rem;background:var(--white);cursor:pointer">
+          <option value="0">Januar</option><option value="1">Februar</option>
+          <option value="2">März</option><option value="3">April</option>
+          <option value="4">Mai</option><option value="5">Juni</option>
+          <option value="6">Juli</option><option value="7">August</option>
+          <option value="8">September</option><option value="9">Oktober</option>
+          <option value="10">November</option><option value="11">Dezember</option>
+        </select>
+        <select id="cal-year-select" onchange="jumpToMonth()" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:.85rem;background:var(--white);cursor:pointer">
+        </select>
+      </div>
     </div>
     <div class="card" style="padding:16px; overflow-x:auto">
       <div id="cal-container"></div>
@@ -415,7 +424,7 @@
         <thead>
           <tr>
             <th>Firma</th><th>Zimmer</th><th>Name</th>
-            <th>Datum</th><th>Zeit</th><th>Personen</th><th>Betreff</th><th></th>
+            <th>Datum</th><th>Zeit</th><th>Betreff</th><th></th>
           </tr>
         </thead>
         <tbody id="bookings-tbody"></tbody>
@@ -508,6 +517,7 @@ setTimeout(() => {
 // INIT
 // ══════════════════════════════════════════
 function init() {
+  initYearSelect();
   buildRoomsGrid();
   buildTimeSelects();
   setDefaultDate();
@@ -531,7 +541,6 @@ function buildRoomsGrid() {
       <div class="check-icon"><svg viewBox="0 0 12 10"><polyline points="1,5 4,8 11,1" fill="none" stroke="white" stroke-width="2"/></svg></div>
       <h4>${r.name}</h4>
       <div class="room-cap">👥 bis ${r.cap} Personen</div>
-      <div class="room-features">${r.features}</div>
     </div>`).join('');
 }
 
@@ -580,7 +589,6 @@ async function submitBooking() {
   const date  = document.getElementById('f-date').value;
   const start = document.getElementById('f-start').value;
   const end   = document.getElementById('f-end').value;
-  const ppl   = document.getElementById('f-people').value;
   const note  = document.getElementById('f-note').value.trim();
 
   if (!name)         return toast('Bitte Namen eingeben.', 'error');
@@ -645,6 +653,42 @@ function resetForm() {
 // ══════════════════════════════════════════
 function changeWeek(dir) { calWeekOffset = dir===0 ? 0 : calWeekOffset+dir; renderCalendar(); }
 
+function initYearSelect() {
+  const sel = document.getElementById('cal-year-select');
+  if (!sel) return;
+  const current = new Date().getFullYear();
+  sel.innerHTML = '';
+  for (let y = current - 1; y <= current + 2; y++) {
+    sel.innerHTML += '<option value="' + y + '">' + y + '</option>';
+  }
+  sel.value = current;
+}
+
+function jumpToMonth() {
+  const month = parseInt(document.getElementById('cal-month-select').value);
+  const year  = parseInt(document.getElementById('cal-year-select').value);
+  const today = new Date();
+  const target = new Date(year, month, 1);
+  // Find Monday of first week of that month
+  const dow = target.getDay() || 7;
+  target.setDate(target.getDate() - dow + 1);
+  const todayMonday = new Date(today);
+  const todayDow = today.getDay() || 7;
+  todayMonday.setDate(today.getDate() - todayDow + 1);
+  const diffMs = target - todayMonday;
+  calWeekOffset = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000));
+  renderCalendar();
+}
+
+function syncCalDropdowns() {
+  const days = getWeekDays(calWeekOffset);
+  const mid = days[2]; // Wednesday = middle of week
+  const mSel = document.getElementById('cal-month-select');
+  const ySel = document.getElementById('cal-year-select');
+  if (mSel) mSel.value = mid.getMonth();
+  if (ySel) ySel.value = mid.getFullYear();
+}
+
 function getWeekDays(offset) {
   const today = new Date(), dow = today.getDay()||7;
   const monday = new Date(today);
@@ -685,6 +729,7 @@ function renderCalendar() {
   });
   html += '</div>';
   document.getElementById('cal-container').innerHTML = html;
+  syncCalDropdowns();
 }
 
 // ══════════════════════════════════════════
@@ -713,9 +758,8 @@ function renderBookings() {
       <td>${b.name}</td>
       <td>${formatDate(b.date)}</td>
       <td>${b.start} – ${b.end}</td>
-      <td>${b.people}</td>
       <td style="color:var(--muted);font-size:.85rem">${b.note||'–'}</td>
-      <td><button class="action-btn" onclick="deleteBooking('${b.fbKey}')">✕</button></td>
+      <td>${b.company === selectedCompany ? `<button class="action-btn" onclick="deleteBooking('${b.fbKey}')">✕</button>` : ''}</td>
     </tr>`).join('');
 }
 
