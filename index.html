@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
 <title>Sitzungszimmer Reservierung</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 
@@ -733,63 +735,79 @@ function renderCalendar() {
   document.getElementById('cal-title').textContent =
     `${days[0].getDate()}. ${MONTHS[days[0].getMonth()]} – ${days[4].getDate()}. ${MONTHS[days[4].getMonth()]} ${days[4].getFullYear()}`;
 
-  const HOUR_H  = 54;   // px per hour
+  const HOUR_H  = 54;
   const START_H = 7;
   const END_H   = 20;
   const HOURS   = Array.from({length: END_H - START_H}, (_, i) => i + START_H);
   const TOTAL_H = HOURS.length * HOUR_H;
   const minsToTop = mins => (mins - START_H * 60) / 60 * HOUR_H;
 
-  // ── Header ──
-  let html = '<div class="cal-outer">';
-  html += '<div class="cal-head-row">';
-  html += '<div class="cal-head-corner"></div>';
+  const S = {
+    outer:    'border:1px solid var(--border);border-radius:4px;overflow:hidden;background:var(--white)',
+    headRow:  'display:flex;border-bottom:2px solid var(--border);background:var(--white)',
+    corner:   'width:64px;flex-shrink:0',
+    headCell: 'flex:1;padding:10px 6px;text-align:center;font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);border-left:1px solid var(--border)',
+    headToday:'flex:1;padding:10px 6px;text-align:center;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--ink);border-left:1px solid var(--border);background:rgba(26,23,20,.05)',
+    body:     'display:flex',
+    timeCol:  'width:64px;flex-shrink:0;display:flex;flex-direction:column',
+    timeSlot: `height:${HOUR_H}px;display:flex;align-items:flex-start;justify-content:flex-end;padding:3px 8px 0;font-size:.72rem;color:var(--muted);border-top:1px solid var(--border);box-sizing:border-box`,
+    daysRow:  'display:flex;flex:1;min-width:0',
+    dayCol:   (h,today) => `flex:1;min-width:0;position:relative;height:${h}px;border-left:1px solid var(--border);background:${today?'rgba(26,23,20,.02)':'var(--white)'}`,
+    hline:    (top) => `position:absolute;left:0;right:0;top:${top}px;border-top:1px solid var(--border);pointer-events:none`,
+  };
+
+  let html = `<div style="${S.outer}">`;
+
+  // Header
+  html += `<div style="${S.headRow}">`;
+  html += `<div style="${S.corner}"></div>`;
   days.forEach((d, i) => {
-    html += `<div class="cal-head-cell ${fmt(d)===todayStr?'today-col':''}">${DAYS[i]}<br>${d.getDate()}.${d.getMonth()+1}</div>`;
+    const isToday = fmt(d) === todayStr;
+    html += `<div style="${isToday ? S.headToday : S.headCell}">${DAYS[i]}<br>${d.getDate()}.${d.getMonth()+1}</div>`;
   });
   html += '</div>';
 
-  // ── Body ──
-  html += '<div class="cal-body">';
+  // Body
+  html += `<div style="${S.body}">`;
 
   // Time column
-  html += '<div class="cal-time-col">';
-  HOURS.forEach(h => {
-    html += `<div class="cal-time-slot">${String(h).padStart(2,'0')}:00</div>`;
+  html += `<div style="${S.timeCol}">`;
+  HOURS.forEach((h, i) => {
+    html += `<div style="${S.timeSlot}${i===0?';border-top:none':''}">${String(h).padStart(2,'0')}:00</div>`;
   });
   html += '</div>';
 
   // Day columns
-  html += '<div class="cal-days-row">';
+  html += `<div style="${S.daysRow}">`;
   days.forEach(d => {
     const isToday = fmt(d) === todayStr;
-    html += `<div class="cal-day-col${isToday?' today-col':''}" style="height:${TOTAL_H}px">`;
+    html += `<div style="${S.dayCol(TOTAL_H, isToday)}">`;
 
-    // Hour lines
     HOURS.forEach((h, i) => {
-      html += `<div class="cal-hour-line" style="top:${i * HOUR_H}px"></div>`;
+      html += `<div style="${S.hline(i * HOUR_H)}"></div>`;
     });
 
-    // Bookings
     bookings.filter(b => b.date === fmt(d)).forEach(b => {
       const [sh, sm] = b.start.split(':').map(Number);
       const [eh, em] = b.end.split(':').map(Number);
       const top    = minsToTop(sh * 60 + sm);
-      const height = Math.max((eh * 60 + em - sh * 60 - sm) / 60 * HOUR_H, 20);
+      const height = Math.max((eh * 60 + em - sh * 60 - sm) / 60 * HOUR_H, 22);
       const co     = COMPANIES[b.company];
-      html += `<div class="cal-event-block ev-${b.company}"
-        style="top:${top}px;height:${height}px"
-        title="${b.start}–${b.end} | ${b.roomName} | ${co.label} | ${b.name}"
-        onclick='showModal(${JSON.stringify(b)})'>
-        <span class="ev-time">${b.start}–${b.end}</span>
-        <span class="ev-label">${co.label}: ${b.name}</span>
-        <span class="ev-room">${b.roomName}</span>
+      const evStyle = `position:absolute;left:3px;right:3px;top:${top}px;height:${height}px;`
+        + `border-radius:3px;padding:4px 6px;font-size:.72rem;font-weight:600;overflow:hidden;cursor:pointer;`
+        + `border-left:3px solid ${co.color};box-sizing:border-box;z-index:1;`
+        + `background:${['A','B','C','D','E','F'].map((l,i)=>['#d6ecf8','#cdd8f0','#fae3cc','#ecdff5','#c8f0e8','#fad4d2'][i]).find((_,i)=>['A','B','C','D','E','F'][i]===b.company)};`
+        + `color:${co.color}`;
+      html += `<div style="${evStyle}" title="${b.start}–${b.end} | ${b.roomName} | ${co.label} | ${b.name}" onclick='showModal(${JSON.stringify(b)})'>
+        <div style="font-size:.64rem;opacity:.75;margin-bottom:1px">${b.start}–${b.end}</div>
+        <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${co.label}: ${b.name}</div>
+        <div style="font-size:.64rem;opacity:.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${b.roomName}</div>
       </div>`;
     });
 
     html += '</div>';
   });
-  html += '</div></div></div>'; // cal-days-row, cal-body, cal-outer
+  html += '</div></div></div>';
 
   document.getElementById('cal-container').innerHTML = html;
   syncCalDropdowns();
